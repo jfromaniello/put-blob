@@ -1,7 +1,7 @@
 {
   "name": "put-blob",
   "description": "put file to azure blob storage",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "repository": {
     "url": "git://github.com/jfromaniello/put-blob.git"
   },
