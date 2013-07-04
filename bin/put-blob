@@ -9,6 +9,7 @@ program
   .option('-a, --account <account>',   'Azure Storage Account')
   .option('-k, --accesskey <accesskey>', 'Azure Storage Access Key')
   .option('-c, --container <container>', 'Storage Container')
+  .option('-f, --from [none]', "From other blob")
   .parse(process.argv);
 
 
@@ -30,8 +31,21 @@ function showErrorAndExit(error) {
 blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 'blob' }, function(error){
   if(error) return showErrorAndExit(error);
   console.log('uploading', file);
+  
+  if (program.from) {
+    var blobUrl  = blobService.getBlobUrl(program.container, program.from);
 
-  blobService.createBlockBlobFromFile(program.container, path.basename(file), file, 11, function(error){
+    return blobService.copyBlob(blobUrl, program.container, file, function(error){
+      if(error) return showErrorAndExit(error);
+      
+      console.log('uploaded!');
+      
+      process.exit(0);
+
+    });
+  }
+
+  blobService.createBlockBlobFromFile(program.container, path.basename(file), file, function(error){
     if(error) return showErrorAndExit(error);
     
     console.log('uploaded!');
