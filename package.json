@@ -1,0 +1,26 @@
+{
+  "name": "put-blob",
+  "description": "put file to azure blob storage",
+  "version": "0.0.0",
+  "repository": {
+    "url": "git://github.com/jfromaniello/put-blob.git"
+  },
+  "author": {
+    "name": "José F. Romaniello",
+    "email": "jfromaniello@gmail.com",
+    "url": "http://joseoncode.com"
+  },
+  "keywords": ["azure", "blob", "upload"],
+  "bin": "./bin/put-blob",
+  "scripts": {
+    "test": "mocha"
+  },
+  "dependencies": {
+    "azure": "~0.7.10",
+    "commander": "~1.2.0"
+  },
+  "devDependencies": {
+    "mocha": "~1.11.0",
+    "chai": "~1.7.0"
+  }
+}
