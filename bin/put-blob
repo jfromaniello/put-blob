@@ -14,6 +14,7 @@ program
   .option('-c, --container <container>', 'Storage Container')
   .option('-z, --chunksize <4>',       'Optional chunk size in megabytes (default to 4mb)', parseInt, 4)
   .option('-f, --from [none]',           'From other blob')
+  .option('-q, --quiet')
   .parse(process.argv);
 
 // console.log(program);
@@ -45,7 +46,7 @@ blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 
     return blobService.copyBlob(blobUrl, program.container, file, function(error){
       if(error) return showErrorAndExit(error);
       
-      console.log('uploaded!');
+      if (!program.quiet) console.log('uploaded!');
       
       process.exit(0);
 
@@ -73,7 +74,7 @@ blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 
 
     blobService.createBlobBlockFromStream(blockId, program.container, blobName, stream, end-start, function(error){
       if(error) return showErrorAndExit(error);
-      pb.tick();
+      if (!program.quiet) pb.tick();
       next(null, blockId);
     });
 
