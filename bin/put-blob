@@ -3,16 +3,18 @@
 var program = require('commander');
 var path = require('path');
 var fs = require('fs');
+var async = require('async');
+var ProgressBar = require('progress');
 
 program
   .version(require(__dirname + '/../package.json').version)
   .usage('[options] <file ...>')
-  .option('-a, --account <account>',   'Azure Storage Account')
+  .option('-a, --account <account>',     'Azure Storage Account')
   .option('-k, --accesskey <accesskey>', 'Azure Storage Access Key')
   .option('-c, --container <container>', 'Storage Container')
-  .option('-f, --from [none]', "From other blob")
+  .option('-z, --chunksize <4>',       'Optional chunk size in megabytes (default to 4mb)', parseInt, 4)
+  .option('-f, --from [none]',           'From other blob')
   .parse(process.argv);
-
 
 // console.log(program);
 
@@ -29,10 +31,14 @@ function showErrorAndExit(error) {
   return process.exit(1);
 }
 
+function pad(num, size) {
+  var s = num+"";
+  while (s.length < size) s = "0" + s;
+  return s;
+}
+
 blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 'blob' }, function(error){
   if(error) return showErrorAndExit(error);
-  console.log('uploading', file);
-  
   if (program.from) {
     var blobUrl  = blobService.getBlobUrl(program.container, program.from);
 
@@ -46,12 +52,43 @@ blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 
     });
   }
 
-  blobService.createBlockBlobFromStream(program.container, path.basename(file), fs.createReadStream(file), fs.statSync(file).size, function(error){
-    if(error) return showErrorAndExit(error);
+  var size = fs.statSync(file).size;
+  var chunkSize = Math.pow(1024,2) * program.chunksize;
+  var chunks = Math.ceil(size / chunkSize);
+  var blobName = path.basename(file);
+
+  var pb = new ProgressBar('  uploading [:bar] :percent :etas', {total: chunks});  
+
+  async.timesSeries(chunks, function (n, next) {
     
-    console.log('uploaded!');
+
+    var start = n * chunkSize;
+    var end = start + chunkSize;// - 1;
+    if (n == chunks-1) {
+      end = start+(size%chunkSize);
+    }
+    var blockId = blobName + '--' + pad(n, 4);
     
-    process.exit(0);
+    var stream = fs.createReadStream(file, {start: start, end: end});
+
+    blobService.createBlobBlockFromStream(blockId, program.container, blobName, stream, end-start, function(error){
+      if(error) return showErrorAndExit(error);
+      pb.tick();
+      next(null, blockId);
+    });
+
+  }, function (err, blocks) {
+    if (err) return showErrorAndExit(err);
+
+    var blockList = {
+      LatestBlocks: blocks
+    };
+
+    blobService.commitBlobBlocks(program.container, blobName, blockList, function (err) {
+      if (err) return showErrorAndExit(err);
+      process.exit(0);
+    });
 
   });
+
 });
