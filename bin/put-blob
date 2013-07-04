@@ -2,6 +2,7 @@
 
 var program = require('commander');
 var path = require('path');
+var fs = require('fs');
 
 program
   .version(require(__dirname + '/../package.json').version)
@@ -45,7 +46,7 @@ blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 
     });
   }
 
-  blobService.createBlockBlobFromFile(program.container, path.basename(file), file, function(error){
+  blobService.createBlockBlobFromStream(program.container, path.basename(file), fs.createReadStream(file), fs.statSync(file).size, function(error){
     if(error) return showErrorAndExit(error);
     
     console.log('uploaded!');
