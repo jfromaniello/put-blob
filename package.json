@@ -1,7 +1,7 @@
 {
   "name": "put-blob",
   "description": "put file to azure blob storage",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "repository": {
     "url": "git://github.com/jfromaniello/put-blob.git"
   },
@@ -10,7 +10,11 @@
     "email": "jfromaniello@gmail.com",
     "url": "http://joseoncode.com"
   },
-  "keywords": ["azure", "blob", "upload"],
+  "keywords": [
+    "azure",
+    "blob",
+    "upload"
+  ],
   "bin": "./bin/put-blob",
   "scripts": {
     "test": "mocha"
