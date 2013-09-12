@@ -53,7 +53,7 @@ function try_upload(file, callback) {
       if (attempts > program.retry) {
         return callback(err);
       }
-      try_upload(file);
+      try_upload(file, callback);
     }).on('end', function () {
       console.log(('Uploaded ' + file + '').blue);
       return callback();
