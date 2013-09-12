@@ -1,10 +1,9 @@
 #!/usr/bin/env node
+require('colors');
 
 var program = require('commander');
-var path = require('path');
-var fs = require('fs');
-var async = require('async');
 var ProgressBar = require('progress');
+var upload = require('../lib/upload');
 
 program
   .version(require(__dirname + '/../package.json').version)
@@ -12,84 +11,56 @@ program
   .option('-a, --account <account>',     'Azure Storage Account')
   .option('-k, --accesskey <accesskey>', 'Azure Storage Access Key')
   .option('-c, --container <container>', 'Storage Container')
-  .option('-z, --chunksize <4>',       'Optional chunk size in megabytes (default to 4mb)', parseInt, 4)
+  .option('-z, --chunksize <4>',         'Optional chunk size in megabytes (default to 4mb)', parseFloat, 4)
+  .option('-r, --retry <3>',             'Attempts before giving up', parseInt, 3)
   .option('-f, --from [none]',           'From other blob')
   .option('-q, --quiet')
   .parse(process.argv);
 
-// console.log(program);
+program.file_to_upload = process.argv.slice(-1)[0];
 
-var file = process.argv.slice(-1)[0];
+process.env['AZURE_STORAGE_ACCOUNT']    = process.env['AZURE_STORAGE_ACCOUNT'] || program.account || '';
+process.env['AZURE_STORAGE_ACCESS_KEY'] = process.env['AZURE_STORAGE_ACCESS_KEY'] || program.accesskey || '';
 
-process.env['AZURE_STORAGE_ACCOUNT']    = program.account;
-process.env['AZURE_STORAGE_ACCESS_KEY'] = program.accesskey;
 
-var azure       = require('azure');
-var blobService = azure.createBlobService();
+
+if (!process.env['AZURE_STORAGE_ACCOUNT']) {
+  console.error('account is required'.red);
+  program.outputHelp();
+  return;
+}
+
+if (!process.env['AZURE_STORAGE_ACCESS_KEY']) {
+  console.error('access key is required'.red);
+  program.outputHelp();
+  return;
+}
+
 
 function showErrorAndExit(error) {
   console.log(error);
   return process.exit(1);
 }
 
-function pad(num, size) {
-  var s = num+"";
-  while (s.length < size) s = "0" + s;
-  return s;
+var attempts = 0;
+
+function try_upload() {
+  var proc = upload(program);
+  var pb;
+  proc.on('starting', function(chunks) {
+      pb = new ProgressBar('  uploading [:bar] :percent :etas', { total: chunks , width: 20 });
+    }).on('chunk send', function () {
+      pb.tick();
+    }).on('error', function (err) {
+      attempts++;
+      console.error(('Got error: ' + (err.message || err.html.BODY.h2) + ', attempt: ' + attempts).red);
+      if (attempts > program.retry) {
+        return process.exit(1);
+      }
+      try_upload();
+    }).on('end', function () {
+      process.exit(0);
+    });
 }
 
-blobService.createContainerIfNotExists(program.container, { publicAccessLevel : 'blob' }, function(error){
-  if(error) return showErrorAndExit(error);
-  if (program.from) {
-    var blobUrl  = blobService.getBlobUrl(program.container, program.from);
-
-    return blobService.copyBlob(blobUrl, program.container, file, function(error){
-      if(error) return showErrorAndExit(error);
-      
-      if (!program.quiet) console.log('uploaded!');
-      
-      process.exit(0);
-
-    });
-  }
-
-  var size = fs.statSync(file).size;
-  var chunkSize = Math.pow(1024,2) * program.chunksize;
-  var chunks = Math.ceil(size / chunkSize);
-  var blobName = path.basename(file);
-
-  var pb = new ProgressBar('  uploading [:bar] :percent :etas', {total: chunks});  
-
-  async.timesSeries(chunks, function (n, next) {
-    
-
-    var start = n * chunkSize;
-    var end = start + chunkSize;// - 1;
-    if (n == chunks-1) {
-      end = start+(size%chunkSize);
-    }
-    var blockId = blobName + '--' + pad(n, 4);
-    
-    var stream = fs.createReadStream(file, {start: start, end: end});
-
-    blobService.createBlobBlockFromStream(blockId, program.container, blobName, stream, end-start, function(error){
-      if(error) return showErrorAndExit(error);
-      if (!program.quiet) pb.tick();
-      next(null, blockId);
-    });
-
-  }, function (err, blocks) {
-    if (err) return showErrorAndExit(err);
-
-    var blockList = {
-      LatestBlocks: blocks
-    };
-
-    blobService.commitBlobBlocks(program.container, blobName, blockList, function (err) {
-      if (err) return showErrorAndExit(err);
-      process.exit(0);
-    });
-
-  });
-
-});
+try_upload();

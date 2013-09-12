@@ -23,6 +23,7 @@
     "azure": "~0.7.10",
     "commander": "~1.2.0",
     "async": "~0.2.9",
-    "progress": "~1.0.0"
+    "progress": "~1.0.0",
+    "colors": "~0.6.2"
   }
 }
