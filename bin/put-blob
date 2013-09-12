@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 require('colors');
 
-var program = require('commander');
+var program     = require('commander');
 var ProgressBar = require('progress');
-var upload = require('../lib/upload');
+var upload      = require('../lib/upload');
+var async       = require('async');
 
 program
   .version(require(__dirname + '/../package.json').version)
@@ -17,7 +18,6 @@ program
   .option('-q, --quiet')
   .parse(process.argv);
 
-program.file_to_upload = process.argv.slice(-1)[0];
 
 process.env['AZURE_STORAGE_ACCOUNT']    = process.env['AZURE_STORAGE_ACCOUNT'] || program.account || '';
 process.env['AZURE_STORAGE_ACCESS_KEY'] = process.env['AZURE_STORAGE_ACCESS_KEY'] || program.accesskey || '';
@@ -37,30 +37,29 @@ if (!process.env['AZURE_STORAGE_ACCESS_KEY']) {
 }
 
 
-function showErrorAndExit(error) {
-  console.log(error);
-  return process.exit(1);
-}
-
 var attempts = 0;
 
-function try_upload() {
-  var proc = upload(program);
+function try_upload(file, callback) {
+  var proc = upload(file, program);
   var pb;
+  if (!program.quiet) console.log(('Uploading ' + file + '').green);
   proc.on('starting', function(chunks) {
-      pb = new ProgressBar('  uploading [:bar] :percent :etas', { total: chunks , width: 20 });
+      if (!program.quiet) pb = new ProgressBar('  uploading ' + file + ' [:bar] :percent :etas', { total: chunks , width: 30 });
     }).on('chunk send', function () {
-      pb.tick();
+      if (!program.quiet) pb.tick();
     }).on('error', function (err) {
       attempts++;
-      console.error(('Got error: ' + (err.message || err.html.BODY.h2) + ', attempt: ' + attempts).red);
+      console.error(('Got error uploading ' + file + ': ' + (err.message || err.html.BODY.h2) + ', attempt: ' + attempts).red);
       if (attempts > program.retry) {
-        return process.exit(1);
+        return callback(err);
       }
-      try_upload();
+      try_upload(file);
     }).on('end', function () {
-      process.exit(0);
+      console.log(('Uploaded ' + file + '').blue);
+      return callback();
     });
 }
 
-try_upload();
+async.eachSeries(program.args, try_upload, function (err) {
+  process.exit(err ? 1 : 0);
+});
